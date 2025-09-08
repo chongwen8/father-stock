@@ -287,6 +287,10 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
   const [newTagName, setNewTagName] = useState('')
   const [showAddToCollectionDialog, setShowAddToCollectionDialog] = useState(false)
   const [activeTab, setActiveTab] = useState<'recent' | 'favorites' | 'custom' | 'tags' | 'lists'>('recent')
+  const [isEditable, setIsEditable] = useState(false)
+  const [editablePrompt, setEditablePrompt] = useState('')
+  const [hasGenerated, setHasGenerated] = useState(false)
+  const [lockedPrompt, setLockedPrompt] = useState('')
 
   // Initialize with today's date
   useEffect(() => {
@@ -333,14 +337,24 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     return buildPrompt(selectedTemplate.template, targetDate)
   }, [selectedTemplate?.template, selectedDate])
 
+  // Update editable prompt when generated prompt changes
+  useEffect(() => {
+    if (generatedPrompt && !isEditable && !lockedPrompt) {
+      setEditablePrompt(generatedPrompt)
+    }
+  }, [generatedPrompt, isEditable, lockedPrompt])
+
   const handleGenerate = () => {
-    if (generatedPrompt && selectedTemplate) {
+    const finalPrompt = isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)
+    if (finalPrompt && selectedTemplate) {
       // Add to recent
       const newRecent = addToRecent(selectedTemplate.id)
       setRecent(newRecent)
       
+      setHasGenerated(true)
+      
       onGenerate({ 
-        prompt: generatedPrompt, 
+        prompt: finalPrompt, 
         criteria: {
           target_year: parseInt(selectedDate.split('-')[0]),
           target_month: parseInt(selectedDate.split('-')[1]),
@@ -354,6 +368,11 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     setSelectedTemplate(template)
     const newRecent = addToRecent(template.id)
     setRecent(newRecent)
+    
+    // Reset editable state when selecting a new template
+    setIsEditable(false)
+    setHasGenerated(false)
+    setLockedPrompt('')
   }
 
   const handleToggleFavorite = (templateId: string) => {
@@ -1003,14 +1022,44 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
         <h2 className="text-lg font-bold text-gray-900 mb-4">生成的筛选条件</h2>
         
         <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
-          <div className="text-sm text-gray-600 mb-2">
-            当前模板: <span className="font-medium text-blue-600">{selectedTemplate?.name || '未选择'}</span>
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-sm text-gray-600">
+              当前模板: <span className="font-medium text-blue-600">{selectedTemplate?.name || '未选择'}</span>
+            </div>
+            {generatedPrompt && (
+              <button
+                onClick={() => {
+                  if (isEditable) {
+                    // When locking, save the current edited content
+                    setLockedPrompt(editablePrompt)
+                  } else {
+                    // When unlocking, prepare for editing
+                    setEditablePrompt(lockedPrompt || generatedPrompt)
+                  }
+                  setIsEditable(!isEditable)
+                }}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                  isEditable 
+                    ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
+                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                }`}
+              >
+                {isEditable ? '🔒 锁定' : '✏️ 编辑'}
+              </button>
+            )}
           </div>
           <div className="relative">
             <textarea
-              value={generatedPrompt}
-              readOnly
-              className="w-full min-h-40 max-h-96 bg-white border border-gray-300 rounded-lg p-4 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base leading-loose tracking-wide font-mono"
+              value={isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)}
+              onChange={(e) => {
+                if (isEditable) {
+                  setEditablePrompt(e.target.value)
+                }
+              }}
+              readOnly={!isEditable}
+              className={`w-full min-h-40 max-h-96 border border-gray-300 rounded-lg p-4 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base leading-loose tracking-wide font-mono ${
+                isEditable ? 'bg-white' : 'bg-gray-50'
+              }`}
               style={{ 
                 height: '200px',
                 lineHeight: '1.8',
@@ -1026,31 +1075,68 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
             </div>
           </div>
           <div className="flex justify-between text-sm text-gray-500 mt-2">
-            <span>可直接复制到股票软件使用 • 拖拽右下角调整高度</span>
-            <span>{generatedPrompt.length} 字符</span>
+            <span>
+              {isEditable ? '可编辑模式 • ' : ''}可直接复制到股票软件使用 • 拖拽右下角调整高度
+            </span>
+            <span>{(isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)).length} 字符</span>
           </div>
         </div>
 
         <div className="flex gap-3">
           <button
             onClick={handleGenerate}
-            disabled={loading || !generatedPrompt}
+            disabled={loading || (!isEditable && !(lockedPrompt || generatedPrompt)) || (isEditable && !editablePrompt)}
             className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
           >
-            {loading ? '生成中...' : '🚀 生成筛选条件'}
+            {loading ? '生成中...' : hasGenerated ? '🚀 重新生成' : '🚀 生成筛选条件'}
           </button>
-          <button
-            onClick={() => {
-              if (generatedPrompt) {
-                navigator.clipboard.writeText(generatedPrompt)
-                alert('已复制到剪贴板！')
-              }
-            }}
-            disabled={!generatedPrompt}
-            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-          >
-            📋 复制
-          </button>
+          
+          {isEditable ? (
+            // When in edit mode, show restore and copy buttons
+            <>
+              <button
+                onClick={() => {
+                  if (generatedPrompt) {
+                    setEditablePrompt(generatedPrompt)
+                    setLockedPrompt('')
+                    setIsEditable(false) // Switch back to locked state
+                    alert('已恢复到默认内容！')
+                  }
+                }}
+                disabled={!generatedPrompt}
+                className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+              >
+                🔄 恢复默认
+              </button>
+              <button
+                onClick={() => {
+                  if (editablePrompt) {
+                    navigator.clipboard.writeText(editablePrompt)
+                    alert('已复制到剪贴板！')
+                  }
+                }}
+                disabled={!editablePrompt}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+              >
+                📋 复制
+              </button>
+            </>
+          ) : (
+            // When not in edit mode, show only copy button
+            <button
+              onClick={() => {
+                const contentToCopy = lockedPrompt || generatedPrompt
+                if (contentToCopy) {
+                  navigator.clipboard.writeText(contentToCopy)
+                  alert('已复制到剪贴板！')
+                }
+              }}
+              disabled={!(lockedPrompt || generatedPrompt)}
+              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+            >
+              📋 复制
+            </button>
+          )}
         </div>
       </div>
 
