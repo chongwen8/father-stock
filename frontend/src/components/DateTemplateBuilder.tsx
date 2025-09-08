@@ -265,6 +265,42 @@ const buildPrompt = (template: string, targetDate: string) => {
   return template.replace(datePattern, targetDate)
 }
 
+// Function to update saved content with new date while preserving user's format preferences
+const updateSavedContentWithNewDate = (savedContent: string, newTargetDate: string) => {
+  // Find all possible date patterns that users might use
+  const datePatterns = [
+    { pattern: /(\d{4})年(\d{1,2})月(\d{1,2})日/g, suffix: '日' }
+  ]
+  
+  let updatedContent = savedContent
+  let hasMatch = false
+  
+  // Extract new date parts safely
+  const newDateMatch = newTargetDate.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
+  if (!newDateMatch) {
+    return { updatedContent, hasMatch: false }
+  }
+  
+  const [, year, month, day] = newDateMatch
+  
+  for (const { pattern, suffix } of datePatterns) {
+    // Reset pattern before testing
+    pattern.lastIndex = 0
+    
+    if (pattern.test(savedContent)) {
+      const replacement = `${year}年${month}月${day}${suffix}`
+      
+      // Reset pattern again before replacing
+      pattern.lastIndex = 0
+      updatedContent = updatedContent.replace(pattern, replacement)
+      hasMatch = true
+      break // Only replace the first matching pattern type
+    }
+  }
+  
+  return { updatedContent, hasMatch }
+}
+
 export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilderProps) {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
@@ -291,6 +327,8 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
   const [editablePrompt, setEditablePrompt] = useState('')
   const [hasGenerated, setHasGenerated] = useState(false)
   const [lockedPrompt, setLockedPrompt] = useState('')
+  const [hasUserEdits, setHasUserEdits] = useState(false)
+  const [showDateFormatWarning, setShowDateFormatWarning] = useState(false)
 
   // Initialize with today's date
   useEffect(() => {
@@ -339,10 +377,28 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
 
   // Update editable prompt when generated prompt changes
   useEffect(() => {
-    if (generatedPrompt && !isEditable && !lockedPrompt) {
-      setEditablePrompt(generatedPrompt)
+    if (generatedPrompt && !isEditable) {
+      // If user hasn't made any edits, update normally
+      if (!hasUserEdits) {
+        setEditablePrompt(generatedPrompt)
+        setShowDateFormatWarning(false) // Clear any previous warnings
+      } else if (lockedPrompt) {
+        // If user has saved edits, update the saved content with new date
+        const [year, month, day] = selectedDate.split('-').map(Number)
+        const targetDate = `${year}年${month}月${day}日`
+        const { updatedContent, hasMatch } = updateSavedContentWithNewDate(lockedPrompt, targetDate)
+        
+        if (hasMatch) {
+          setLockedPrompt(updatedContent)
+          setShowDateFormatWarning(false) // Clear warning on successful update
+        } else {
+          // Warn user that no date patterns were found
+          setShowDateFormatWarning(true)
+          console.warn('⚠️ 日期格式警告: 在已保存的编辑内容中未找到标准日期格式，日期更改未生效。')
+        }
+      }
     }
-  }, [generatedPrompt, isEditable, lockedPrompt])
+  }, [generatedPrompt, isEditable, hasUserEdits, lockedPrompt, selectedDate])
 
   const handleGenerate = () => {
     const finalPrompt = isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)
@@ -365,6 +421,12 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
   }
 
   const handleTemplateSelect = (template: any) => {
+    // If we're switching templates while in edit mode, save current edits first
+    if (isEditable && editablePrompt && selectedTemplate) {
+      setLockedPrompt(editablePrompt)
+      setHasUserEdits(true)
+    }
+    
     setSelectedTemplate(template)
     const newRecent = addToRecent(template.id)
     setRecent(newRecent)
@@ -373,6 +435,7 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     setIsEditable(false)
     setHasGenerated(false)
     setLockedPrompt('')
+    setHasUserEdits(false)
   }
 
   const handleToggleFavorite = (templateId: string) => {
@@ -423,6 +486,10 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
       setTemplateDescription('')
       setCustomTemplateText('')
       setShowSaveDialog(false)
+      
+      // Auto-focus the new template
+      setActiveTab('custom')
+      handleTemplateSelect(newTemplate)
     }
   }
 
@@ -1030,24 +1097,44 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
               <button
                 onClick={() => {
                   if (isEditable) {
-                    // When locking, save the current edited content
-                    setLockedPrompt(editablePrompt)
-                  } else {
-                    // When unlocking, prepare for editing
+                    // When canceling edit, restore to last saved state (or generated if no saves)
                     setEditablePrompt(lockedPrompt || generatedPrompt)
+                    setIsEditable(false)
+                  } else {
+                    // When starting edit, prepare for editing with current content
+                    setEditablePrompt(lockedPrompt || generatedPrompt)
+                    setIsEditable(true)
+                    setShowDateFormatWarning(false) // Clear warning when entering edit mode
                   }
-                  setIsEditable(!isEditable)
                 }}
                 className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
                   isEditable 
-                    ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
+                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
                     : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                 }`}
               >
-                {isEditable ? '🔒 锁定' : '✏️ 编辑'}
+                {isEditable ? '❌ 取消编辑' : '✏️ 编辑'}
               </button>
             )}
           </div>
+          
+          {/* Date Format Warning */}
+          {showDateFormatWarning && hasUserEdits && (
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="text-yellow-600 text-lg">⚠️</span>
+                <div className="text-sm">
+                  <div className="font-medium text-yellow-800 mb-1">日期格式警告</div>
+                  <div className="text-yellow-700">
+                    在已保存的编辑内容中未找到可识别的日期格式，日期更改未自动应用。
+                    <br />
+                    建议使用标准格式：<code className="bg-yellow-100 px-1 rounded">2025年9月8日</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="relative">
             <textarea
               value={isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)}
@@ -1092,13 +1179,26 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
           </button>
           
           {isEditable ? (
-            // When in edit mode, show restore and copy buttons
+            // When in edit mode, show save, restore and copy buttons
             <>
+              <button
+                onClick={() => {
+                  setLockedPrompt(editablePrompt)
+                  setHasUserEdits(true)
+                  setIsEditable(false)
+                  alert('已保存编辑内容！')
+                }}
+                disabled={!editablePrompt}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+              >
+                💾 保存编辑
+              </button>
               <button
                 onClick={() => {
                   if (generatedPrompt) {
                     setEditablePrompt(generatedPrompt)
                     setLockedPrompt('')
+                    setHasUserEdits(false)
                     setIsEditable(false) // Switch back to locked state
                     alert('已恢复到默认内容！')
                   }
