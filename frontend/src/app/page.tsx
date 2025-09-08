@@ -71,10 +71,27 @@ export default function Home() {
               <div className="text-sm font-medium text-green-800 mb-2 flex items-center justify-between">
                 <span>📋 筛选条件 ({prompt.length} 字符)</span>
               </div>
-              <div className="bg-white rounded-lg p-4 border border-green-200 max-h-60 overflow-y-auto">
-                <div className="text-lg leading-relaxed text-gray-900 font-semibold whitespace-pre-wrap">
-                  {prompt}
+              <div className="relative">
+                <textarea
+                  value={prompt}
+                  readOnly
+                  className="w-full min-h-40 max-h-96 bg-white border border-green-300 rounded-lg p-4 resize-y focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-base leading-loose tracking-wide font-mono"
+                  style={{ 
+                    height: '200px',
+                    lineHeight: '1.8',
+                    letterSpacing: '0.025em'
+                  }}
+                />
+                <div className="absolute bottom-1 right-1 text-gray-400 pointer-events-none">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M16 16V10h-2v4h-4v2h6zM10 16v-2H6v2h4zM16 6V2h-4v2h2v2h2zM6 4V2H2v4h2V4h2z"/>
+                    <path d="M9 9l2-2 2 2-2 2-2-2z"/>
+                  </svg>
                 </div>
+              </div>
+              <div className="flex justify-between text-sm text-green-600 mt-2">
+                <span>可直接复制到股票软件使用 • 拖拽右下角调整高度</span>
+                <span>{prompt.length} 字符</span>
               </div>
             </div>
 
