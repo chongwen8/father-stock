@@ -90,6 +90,7 @@ export function PromptBuilder({ initialPrompt, parsedCriteria, onGenerate, loadi
   const [showImport, setShowImport] = useState(false)
   const [rawPrompt, setRawPrompt] = useState(initialPrompt || '')
   const [extractStatus, setExtractStatus] = useState<string>('')
+  const [showDatePicker, setShowDatePicker] = useState(false)
 
   // Sync with parsed criteria if provided
   useEffect(() => {
