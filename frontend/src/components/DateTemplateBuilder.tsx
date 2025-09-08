@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { ExtendedScreeningCriteria, ScreeningCriteria, ScreeningTemplate } from '@/types'
-import { CalendarIcon, DocumentTextIcon, ClockIcon, StarIcon, HeartIcon, BookmarkIcon } from '@heroicons/react/24/outline'
-import { StarIcon as StarSolid, HeartIcon as HeartSolid, BookmarkIcon as BookmarkSolid } from '@heroicons/react/24/solid'
+import type { ScreeningCriteria } from '@/types'
+import { DateSelector } from './DateSelector'
+import { TemplateTabs } from './TemplateTabs'
+import { PromptOutput } from './PromptOutput'
+import { Dialogs } from './Dialogs'
 
 interface DateTemplateBuilderProps {
-  onGenerate: (payload: { prompt: string; criteria: ScreeningCriteria }) => void
-  loading?: boolean
+  onGenerate?: (payload: { prompt: string; criteria: ScreeningCriteria }) => void
 }
 
 // Organized template categories
@@ -88,7 +89,6 @@ const getStoredData = () => {
       templateTags: {}
     }
     
-    // Ensure all new fields exist for backward compatibility
     return {
       templates: data.templates || [],
       favorites: data.favorites || [],
@@ -118,11 +118,12 @@ const saveStoredData = (data: any) => {
   }
 }
 
+// Helper functions
 const addToRecent = (templateId: string) => {
   const data = getStoredData()
   const recent = data.recent || []
   const filtered = recent.filter((id: string) => id !== templateId)
-  const newRecent = [templateId, ...filtered].slice(0, 5) // Keep only 5 recent
+  const newRecent = [templateId, ...filtered].slice(0, 5)
   
   saveStoredData({ ...data, recent: newRecent })
   return newRecent
@@ -156,25 +157,6 @@ const saveCustomTemplate = (template: any) => {
   return newTemplate
 }
 
-// Custom category management
-const addCustomCategory = (categoryName: string) => {
-  const data = getStoredData()
-  const customCategories = data.customCategories || []
-  
-  if (!customCategories.find((cat: any) => cat.name === categoryName)) {
-    const newCategory = {
-      id: 'category_' + Date.now().toString(),
-      name: categoryName,
-      created_at: new Date().toISOString()
-    }
-    const newCategories = [...customCategories, newCategory]
-    saveStoredData({ ...data, customCategories: newCategories })
-    return newCategories
-  }
-  return customCategories
-}
-
-// Named favorite list management
 const addNamedFavoriteList = (listName: string) => {
   const data = getStoredData()
   const namedFavoriteLists = data.namedFavoriteLists || []
@@ -223,7 +205,6 @@ const removeTemplateFromFavoriteList = (templateId: string, listId: string) => {
   return updatedLists
 }
 
-// Delete favorite list function
 const deleteFavoriteList = (listId: string) => {
   const data = getStoredData()
   const namedFavoriteLists = data.namedFavoriteLists || []
@@ -234,7 +215,6 @@ const deleteFavoriteList = (listId: string) => {
   return updatedLists
 }
 
-// Template tags management
 const addTagToTemplate = (templateId: string, tag: string) => {
   const data = getStoredData()
   const templateTags = data.templateTags || {}
@@ -258,26 +238,17 @@ const removeTagFromTemplate = (templateId: string, tag: string) => {
   return newTags
 }
 
-// Template deletion function
 const deleteTemplate = (templateId: string) => {
   const data = getStoredData()
   
-  // Remove from custom templates
   const updatedTemplates = data.templates.filter((t: any) => t.id !== templateId)
-  
-  // Remove from favorites
   const updatedFavorites = data.favorites.filter((id: string) => id !== templateId)
-  
-  // Remove from recent
   const updatedRecent = data.recent.filter((id: string) => id !== templateId)
-  
-  // Remove from all named favorite lists
   const updatedNamedLists = data.namedFavoriteLists.map((list: any) => ({
     ...list,
     templateIds: list.templateIds.filter((id: string) => id !== templateId)
   }))
   
-  // Remove from template tags
   const updatedTemplateTags = { ...data.templateTags }
   delete updatedTemplateTags[templateId]
   
@@ -294,27 +265,21 @@ const deleteTemplate = (templateId: string) => {
   return updatedData
 }
 
-// Helper function to find template by ID across all categories
 const findTemplateById = (id: string, customTemplates: any[]) => {
-  // Search in preset categories
   for (const category of Object.values(PRESET_TEMPLATES.categories)) {
     const found = category.templates.find((t: any) => t.id === id)
     if (found) return found
   }
   
-  // Search in custom templates
   return customTemplates.find(t => t.id === id)
 }
 
 const buildPrompt = (template: string, targetDate: string) => {
-  // Replace any existing date patterns (e.g., "2024年9月7日" -> new date)
   const datePattern = /\d{4}年\d{1,2}月\d{1,2}日/g
   return template.replace(datePattern, targetDate)
 }
 
-// Function to update saved content with new date while preserving user's format preferences
 const updateSavedContentWithNewDate = (savedContent: string, newTargetDate: string) => {
-  // Find all possible date patterns that users might use
   const datePatterns = [
     { pattern: /(\d{4})年(\d{1,2})月(\d{1,2})日/g, suffix: '日' }
   ]
@@ -322,7 +287,6 @@ const updateSavedContentWithNewDate = (savedContent: string, newTargetDate: stri
   let updatedContent = savedContent
   let hasMatch = false
   
-  // Extract new date parts safely
   const newDateMatch = newTargetDate.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/)
   if (!newDateMatch) {
     return { updatedContent, hasMatch: false }
@@ -331,53 +295,57 @@ const updateSavedContentWithNewDate = (savedContent: string, newTargetDate: stri
   const [, year, month, day] = newDateMatch
   
   for (const { pattern, suffix } of datePatterns) {
-    // Reset pattern before testing
     pattern.lastIndex = 0
     
     if (pattern.test(savedContent)) {
       const replacement = `${year}年${month}月${day}${suffix}`
-      
-      // Reset pattern again before replacing
       pattern.lastIndex = 0
       updatedContent = updatedContent.replace(pattern, replacement)
       hasMatch = true
-      break // Only replace the first matching pattern type
+      break
     }
   }
   
   return { updatedContent, hasMatch }
 }
 
-export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilderProps) {
+export function DateTemplateBuilder({ onGenerate }: DateTemplateBuilderProps) {
+  // State management
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null)
   const [customTemplates, setCustomTemplates] = useState<any[]>([])
   const [favorites, setFavorites] = useState<string[]>([])
   const [recent, setRecent] = useState<string[]>([])
-  const [customCategories, setCustomCategories] = useState<any[]>([])
   const [namedFavoriteLists, setNamedFavoriteLists] = useState<any[]>([])
   const [templateTags, setTemplateTags] = useState<any>({})
+  const [activeTab, setActiveTab] = useState<'recent' | 'custom' | 'tags' | 'lists'>('recent')
+  
+  // Dialog states
   const [showSaveDialog, setShowSaveDialog] = useState(false)
-  const [showCategoryDialog, setShowCategoryDialog] = useState(false)
-  const [showFavoriteListDialog, setShowFavoriteListDialog] = useState(false)
   const [showTagDialog, setShowTagDialog] = useState(false)
+  const [showFavoriteListDialog, setShowFavoriteListDialog] = useState(false)
+  const [showAddToCollectionDialog, setShowAddToCollectionDialog] = useState(false)
   const [showTemplateListDialog, setShowTemplateListDialog] = useState(false)
   const [selectedListForViewing, setSelectedListForViewing] = useState<any>(null)
   const [selectedTemplateForTag, setSelectedTemplateForTag] = useState<string | null>(null)
+  
+  // Form states
   const [customTemplateText, setCustomTemplateText] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [newFavoriteListName, setNewFavoriteListName] = useState('')
   const [newTagName, setNewTagName] = useState('')
-  const [showAddToCollectionDialog, setShowAddToCollectionDialog] = useState(false)
-  const [activeTab, setActiveTab] = useState<'recent' | 'custom' | 'tags' | 'lists'>('recent')
+  const [newFavoriteListName, setNewFavoriteListName] = useState('')
+  
+  // Editor states
   const [isEditable, setIsEditable] = useState(false)
   const [editablePrompt, setEditablePrompt] = useState('')
-  const [hasGenerated, setHasGenerated] = useState(false)
   const [lockedPrompt, setLockedPrompt] = useState('')
   const [hasUserEdits, setHasUserEdits] = useState(false)
   const [showDateFormatWarning, setShowDateFormatWarning] = useState(false)
+  const [templateEdits, setTemplateEdits] = useState<Record<string, string>>({})
+
+  // Computed value: check if current template has edits
+  const currentTemplateHasEdits = selectedTemplate?.id ? Boolean(templateEdits[selectedTemplate.id]) : false
 
   // Initialize with today's date
   useEffect(() => {
@@ -392,11 +360,9 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     setCustomTemplates(data.templates || [])
     setFavorites(data.favorites || [])
     setRecent(data.recent || [])
-    setCustomCategories(data.customCategories || [])
     setNamedFavoriteLists(data.namedFavoriteLists || [])
     setTemplateTags(data.templateTags || {})
     
-    // Auto-select first recent or favorite template
     const recentTemplates = data.recent || []
     if (recentTemplates.length > 0) {
       const template = findTemplateById(recentTemplates[0], data.templates || [])
@@ -405,7 +371,6 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
         setActiveTab('recent')
       }
     } else {
-      // Default to first morning template if available
       const morningTemplates = PRESET_TEMPLATES.categories.morning.templates
       if (morningTemplates.length > 0) {
         setSelectedTemplate(morningTemplates[0])
@@ -426,65 +391,91 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
 
   // Update editable prompt when generated prompt changes
   useEffect(() => {
-    if (generatedPrompt && !isEditable) {
-      // If user hasn't made any edits, update normally
-      if (!hasUserEdits) {
+    if (generatedPrompt && !isEditable && selectedTemplate?.id) {
+      // Check if this template has stored edits
+      const storedEdit = templateEdits[selectedTemplate.id]
+      
+      if (!storedEdit) {
+        // No stored edits, use fresh generated prompt
         setEditablePrompt(generatedPrompt)
-        setShowDateFormatWarning(false) // Clear any previous warnings
-      } else if (lockedPrompt) {
-        // If user has saved edits, update the saved content with new date
+        setShowDateFormatWarning(false)
+      } else {
+        // Has stored edits, update dates in the stored content
         const [year, month, day] = selectedDate.split('-').map(Number)
         const targetDate = `${year}年${month}月${day}日`
-        const { updatedContent, hasMatch } = updateSavedContentWithNewDate(lockedPrompt, targetDate)
+        const { updatedContent, hasMatch } = updateSavedContentWithNewDate(storedEdit, targetDate)
         
         if (hasMatch) {
           setLockedPrompt(updatedContent)
-          setShowDateFormatWarning(false) // Clear warning on successful update
+          setShowDateFormatWarning(false)
+          // Also update the stored edit with new date
+          setTemplateEdits(prev => ({
+            ...prev,
+            [selectedTemplate.id]: updatedContent
+          }))
         } else {
-          // Warn user that no date patterns were found
           setShowDateFormatWarning(true)
           console.warn('⚠️ 日期格式警告: 在已保存的编辑内容中未找到标准日期格式，日期更改未生效。')
         }
       }
     }
-  }, [generatedPrompt, isEditable, hasUserEdits, lockedPrompt, selectedDate])
+  }, [generatedPrompt, isEditable, selectedTemplate?.id, templateEdits, selectedDate])
 
-  const handleGenerate = () => {
-    const finalPrompt = isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)
-    if (finalPrompt && selectedTemplate) {
-      // Add to recent
-      const newRecent = addToRecent(selectedTemplate.id)
-      setRecent(newRecent)
-      
-      setHasGenerated(true)
-      
-      onGenerate({ 
-        prompt: finalPrompt, 
-        criteria: {
-          target_year: parseInt(selectedDate.split('-')[0]),
-          target_month: parseInt(selectedDate.split('-')[1]),
-          target_day: parseInt(selectedDate.split('-')[2]),
-        } as any
-      })
-    }
+  // Helper functions
+  const getRecentTemplates = () => {
+    return recent.map(id => findTemplateById(id, customTemplates)).filter(Boolean)
   }
 
+  const getTemplatesByTag = (tag: string) => {
+    const templateIds = Object.keys(templateTags).filter(id => 
+      templateTags[id] && templateTags[id].includes(tag)
+    )
+    return templateIds.map(id => findTemplateById(id, customTemplates)).filter(Boolean)
+  }
+
+  const getTemplatesInFavoriteList = (listId: string) => {
+    const list = namedFavoriteLists.find((l: any) => l.id === listId)
+    if (!list) return []
+    return list.templateIds.map((id: string) => findTemplateById(id, customTemplates)).filter(Boolean)
+  }
+
+  const getAllUniqueTags = () => {
+    const allTags = Object.values(templateTags).flat() as string[]
+    return [...new Set(allTags)]
+  }
+
+  const isTemplateInAnyFavoriteList = (templateId: string) => {
+    if (favorites.includes(templateId)) return true
+    return namedFavoriteLists.some((list: any) => list.templateIds.includes(templateId))
+  }
+
+  // Event handlers
   const handleTemplateSelect = (template: any) => {
-    // If we're switching templates while in edit mode, save current edits first
-    if (isEditable && editablePrompt && selectedTemplate) {
-      setLockedPrompt(editablePrompt)
-      setHasUserEdits(true)
+    // Save current edits to templateEdits if we're currently editing
+    if (isEditable && editablePrompt && selectedTemplate?.id) {
+      setTemplateEdits(prev => ({
+        ...prev,
+        [selectedTemplate.id]: editablePrompt
+      }))
     }
     
     setSelectedTemplate(template)
     const newRecent = addToRecent(template.id)
     setRecent(newRecent)
     
-    // Reset editable state when selecting a new template
+    // Exit edit mode
     setIsEditable(false)
-    setHasGenerated(false)
-    setLockedPrompt('')
-    setHasUserEdits(false)
+    
+    // Check if this template has stored edits
+    const storedEdit = templateEdits[template.id]
+    if (storedEdit) {
+      // Restore stored edits for this template
+      setLockedPrompt(storedEdit)
+    } else {
+      // No stored edits, generate fresh prompt
+      setLockedPrompt('')
+    }
+    setShowDateFormatWarning(false)
   }
 
   const handleToggleFavorite = (templateId: string, e?: React.MouseEvent) => {
@@ -494,15 +485,11 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     const currentFavorites = data.favorites || []
     const currentNamedLists = data.namedFavoriteLists || []
     
-    // Check if template is in main favorites
     const isInMainFavorites = currentFavorites.includes(templateId)
-    
-    // Check which named lists contain this template
     const listsContainingTemplate = currentNamedLists.filter((list: any) => 
       list.templateIds.includes(templateId)
     )
     
-    // If template is in any favorites, show removal options
     if (isInMainFavorites || listsContainingTemplate.length > 0) {
       let message = `⭐ 此模板已收藏\n\n`
       
@@ -521,10 +508,7 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
       const shouldRemove = confirm(message)
       
       if (shouldRemove) {
-        // Remove from main favorites
         const newFavorites = currentFavorites.filter((id: string) => id !== templateId)
-        
-        // Remove from all named favorite lists
         const updatedLists = currentNamedLists.map((list: any) => ({
           ...list,
           templateIds: list.templateIds.filter((id: string) => id !== templateId)
@@ -535,7 +519,6 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
         setNamedFavoriteLists(updatedLists)
       }
     } else {
-      // Template not favorited, add to main favorites
       const newFavorites = [...currentFavorites, templateId]
       saveStoredData({ ...data, favorites: newFavorites })
       setFavorites(newFavorites)
@@ -559,18 +542,9 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
       setCustomTemplateText('')
       setShowSaveDialog(false)
       
-      // Auto-focus the new template
       setActiveTab('custom')
       handleTemplateSelect(newTemplate)
     }
-  }
-
-  const handleAddCustomCategory = () => {
-    if (!newCategoryName.trim()) return
-    const newCategories = addCustomCategory(newCategoryName)
-    setCustomCategories(newCategories)
-    setNewCategoryName('')
-    setShowCategoryDialog(false)
   }
 
   const handleAddFavoriteList = () => {
@@ -596,7 +570,6 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
   }
 
   const handleDeleteTemplate = (templateId: string) => {
-    // Check if this is a preset template (cannot be deleted)
     const isPresetTemplate = Object.values(PRESET_TEMPLATES.categories).some((cat: any) => 
       cat.templates.some((t: any) => t.id === templateId)
     )
@@ -606,11 +579,9 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
       return
     }
 
-    // Find template name for better confirmation
     const template = findTemplateById(templateId, customTemplates)
     const templateName = template?.name || '模板'
 
-    // Enhanced confirmation dialog
     const isConfirmed = confirm(
       `⚠️ 删除确认\n\n您确定要删除"${templateName}"吗？\n\n此操作将：\n• 从所有收藏夹中移除\n• 删除所有相关标签\n• 清空使用记录\n\n⚠️ 删除后无法恢复！\n\n点击"确定"继续删除，点击"取消"保留模板。`
     )
@@ -618,19 +589,16 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     if (isConfirmed) {
       const updatedData = deleteTemplate(templateId)
       
-      // Update all state
       setCustomTemplates(updatedData.templates)
       setFavorites(updatedData.favorites)
       setRecent(updatedData.recent)
       setNamedFavoriteLists(updatedData.namedFavoriteLists)
       setTemplateTags(updatedData.templateTags)
       
-      // Clear selection if deleted template was selected
       if (selectedTemplate?.id === templateId) {
         setSelectedTemplate(null)
       }
 
-      // Show success message
       setTimeout(() => {
         alert(`✅ "${templateName}" 已成功删除`)
       }, 100)
@@ -638,12 +606,10 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
   }
 
   const handleDeleteFavoriteList = (listId: string) => {
-    // Find list name and template count for better confirmation
     const list = namedFavoriteLists.find((l: any) => l.id === listId)
     const listName = list?.name || '收藏夹'
     const templateCount = list?.templateIds?.length || 0
 
-    // Enhanced confirmation dialog
     const isConfirmed = confirm(
       `⚠️ 删除收藏夹确认\n\n您确定要删除"${listName}"收藏夹吗？\n\n此收藏夹包含 ${templateCount} 个模板\n\n注意：\n• 删除收藏夹不会删除模板本身\n• 模板将保留在其他位置\n• 此操作无法撤销\n\n点击"确定"删除收藏夹，点击"取消"保留。`
     )
@@ -652,13 +618,23 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
       const updatedLists = deleteFavoriteList(listId)
       setNamedFavoriteLists(updatedLists)
       
-      // Show success message
       setTimeout(() => {
         alert(`✅ 收藏夹"${listName}"已删除`)
       }, 100)
     }
   }
 
+  const handleAddTemplateToFavoriteList = (templateId: string, listId: string) => {
+    const updatedLists = addTemplateToFavoriteList(templateId, listId)
+    setNamedFavoriteLists(updatedLists)
+  }
+
+  const handleRemoveTemplateFromFavoriteList = (templateId: string, listId: string) => {
+    const updatedLists = removeTemplateFromFavoriteList(templateId, listId)
+    setNamedFavoriteLists(updatedLists)
+  }
+
+  // Date handlers
   const setToToday = () => {
     const today = new Date()
     setSelectedDate(today.toISOString().split('T')[0])
@@ -676,199 +652,103 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
     setSelectedDate(tomorrow.toISOString().split('T')[0])
   }
 
-  // Get templates for each tab
-  const getRecentTemplates = () => {
-    return recent.map(id => findTemplateById(id, customTemplates)).filter(Boolean)
+  // Prompt handlers
+  const handleToggleEdit = () => {
+    if (isEditable) {
+      setIsEditable(false)
+    } else {
+      setEditablePrompt(lockedPrompt || generatedPrompt)
+      setIsEditable(true)
+    }
   }
 
-  const getTemplatesByTag = (tag: string) => {
-    const templateIds = Object.keys(templateTags).filter(id => 
-      templateTags[id] && templateTags[id].includes(tag)
-    )
-    return templateIds.map(id => findTemplateById(id, customTemplates)).filter(Boolean)
-  }
-
-  const getTemplatesByCategory = (categoryId: string) => {
-    // Get all templates (both custom and preset) that belong to this category
-    const allTemplates = [
-      ...customTemplates,
-      ...Object.values(PRESET_TEMPLATES.categories).flatMap((cat: any) => cat.templates)
-    ]
+  const handleSave = () => {
+    setLockedPrompt(editablePrompt)
+    setIsEditable(false)
     
-    // For now, we'll use a simple approach - check if template has the category in its metadata
-    // In a more sophisticated system, you'd have a separate mapping
-    return allTemplates.filter((template: any) => {
-      // Check if template has category metadata or if it's assigned to this category
-      return template.categoryId === categoryId || (template.categories && template.categories.includes(categoryId))
-    })
-  }
-
-  const getTemplatesInFavoriteList = (listId: string) => {
-    const list = namedFavoriteLists.find((l: any) => l.id === listId)
-    if (!list) return []
-    return list.templateIds.map((id: string) => findTemplateById(id, customTemplates)).filter(Boolean)
-  }
-
-  const getAllUniqueTags = () => {
-    const allTags = Object.values(templateTags).flat() as string[]
-    return [...new Set(allTags)]
-  }
-
-  const isTemplateInAnyFavoriteList = (templateId: string) => {
-    // Check if in main favorites
-    if (favorites.includes(templateId)) return true
+    // Save to per-template storage
+    if (selectedTemplate?.id) {
+      setTemplateEdits(prev => ({
+        ...prev,
+        [selectedTemplate.id]: editablePrompt
+      }))
+    }
     
-    // Check if in any named favorite list
-    return namedFavoriteLists.some((list: any) => list.templateIds.includes(templateId))
+    alert('已保存编辑内容！')
   }
 
-  const TemplateCard = ({ template, showFavorite = true, showTags = true }: { template: any, showFavorite?: boolean, showTags?: boolean }) => {
-    const isFavorite = isTemplateInAnyFavoriteList(template.id)
-    const isSelected = selectedTemplate?.id === template.id
-    const templateTagsList = templateTags[template.id] || []
+  const handleRestore = () => {
+    if (generatedPrompt) {
+      setEditablePrompt(generatedPrompt)
+      setLockedPrompt('')
+      setIsEditable(false)
+      
+      // Clear template-specific edits
+      if (selectedTemplate?.id) {
+        setTemplateEdits(prev => {
+          const newEdits = { ...prev }
+          delete newEdits[selectedTemplate.id]
+          return newEdits
+        })
+      }
+      
+      alert('已恢复到默认内容！')
+    }
+  }
 
-    return (
-      <div
-        className={`relative p-4 border-2 rounded-lg transition-all cursor-pointer ${
-          isSelected
-            ? 'border-blue-500 bg-blue-50 shadow-md'
-            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
-        }`}
-        onClick={() => handleTemplateSelect(template)}
-      >
-        <div className="flex justify-between items-start mb-2">
-          <div className="flex-1 pr-2">
-            <div className="font-semibold text-gray-900 mb-1">{template.name}</div>
-            <div className="text-sm text-gray-600 mb-2">{template.description}</div>
-          </div>
-          
-          <div className="flex gap-1">
-            {showFavorite && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleToggleFavorite(template.id, e)
-                }}
-                className={`group relative p-1 rounded-lg transition-all duration-200 ${
-                  isFavorite 
-                    ? 'bg-gradient-to-r from-yellow-400 to-orange-500 shadow-md transform scale-105' 
-                    : 'bg-gray-100 hover:bg-gray-200 hover:scale-105'
-                }`}
-              >
-                <span className={`text-sm transition-all duration-200 ${
-                  isFavorite ? 'animate-pulse' : ''
-                }`}>
-                  {isFavorite ? '⭐' : '☆'}
-                </span>
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
-                    {isFavorite ? '取消收藏' : '添加收藏'}
-                  </span>
-                </div>
-              </button>
-            )}
-            
-            {showTags && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedTemplateForTag(template.id)
-                  setShowTagDialog(true)
-                }}
-                className="group relative p-1 rounded-lg bg-blue-100 hover:bg-blue-200 transition-all duration-200 hover:scale-105"
-                title="添加标签"
-              >
-                <span className="text-sm">🏷️</span>
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
-                    添加标签
-                  </span>
-                </div>
-              </button>
-            )}
-            
-            {/* Add to Collection/Category button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedTemplateForTag(template.id)
-                setShowAddToCollectionDialog(true)
-              }}
-              className="group relative p-1 rounded-lg bg-green-100 hover:bg-green-200 transition-all duration-200 hover:scale-105"
-              title="添加到收藏夹"
-            >
-              <span className="text-sm">📚</span>
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
-                  添加到收藏夹
-                </span>
-              </div>
-            </button>
+  const handleCopy = () => {
+    const contentToCopy = lockedPrompt || generatedPrompt
+    if (contentToCopy) {
+      navigator.clipboard.writeText(contentToCopy)
+      alert('已复制到剪贴板！')
+    }
+  }
 
-            {/* Delete Template button - only for custom templates */}
-            {customTemplates.some(ct => ct.id === template.id) && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteTemplate(template.id)
-                }}
-                className="group relative p-1 rounded-lg bg-red-100 hover:bg-red-200 transition-all duration-200 hover:scale-105"
-                title="删除模板"
-              >
-                <span className="text-sm">🗑️</span>
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                  <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
-                    删除模板
-                  </span>
-                </div>
-              </button>
-            )}
-          </div>
-        </div>
-        
-        {showTags && templateTagsList.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
-            {templateTagsList.map((tag: string, index: number) => {
-              const tagColors = [
-                'bg-gradient-to-r from-blue-500 to-cyan-500',
-                'bg-gradient-to-r from-purple-500 to-pink-500',
-                'bg-gradient-to-r from-green-500 to-teal-500',
-                'bg-gradient-to-r from-orange-500 to-red-500',
-                'bg-gradient-to-r from-indigo-500 to-purple-500'
-              ];
-              const currentColor = tagColors[index % tagColors.length];
-              
-              return (
-                <span
-                  key={tag}
-                  className={`inline-flex items-center gap-1 px-2 py-0.5 ${currentColor} text-white text-xs rounded-full shadow-sm hover:shadow-md transition-all duration-200 transform hover:scale-105`}
-                >
-                  <span className="font-medium">{tag}</span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleRemoveTag(template.id, tag)
-                    }}
-                    className="text-white/80 hover:text-white hover:bg-white/20 rounded-full w-3 h-3 flex items-center justify-center transition-colors text-xs"
-                  >
-                    ×
-                  </button>
-                </span>
-              );
-            })}
-          </div>
-        )}
-        
-        {isSelected && (
-          <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-2 py-1 rounded-lg text-xs font-medium shadow-sm">
-              <span className="text-sm">✨</span>
-              已选择
-            </div>
-          </div>
-        )}
-      </div>
-    )
+  const handleDownload = () => {
+    const contentToDownload = lockedPrompt || generatedPrompt
+    if (contentToDownload) {
+      const blob = new Blob([contentToDownload], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `股票筛选-${new Date().toISOString().split('T')[0]}.txt`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      alert('文件已下载！')
+    }
+  }
+
+  const handleAIAnalysis = () => {
+    const contentToAnalyze = isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)
+    if (contentToAnalyze) {
+      alert('🤖 AI分析功能开发中...\n\n将发送筛选条件到AI进行：\n• 策略分析\n• 风险评估\n• 优化建议\n• 历史回测')
+    }
+  }
+
+  const handleSyntaxCheck = () => {
+    const contentToValidate = isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)
+    if (contentToValidate) {
+      const hasDate = /\d{4}年\d{1,2}月\d{1,2}日/.test(contentToValidate)
+      const hasConditions = contentToValidate.includes('；') || contentToValidate.includes('且') || contentToValidate.includes('或')
+      const hasNumbers = /\d/.test(contentToValidate)
+      
+      let validationMsg = '🔍 语法检查结果：\n\n'
+      
+      if (hasDate) validationMsg += '✅ 包含日期格式\n'
+      else validationMsg += '⚠️ 缺少日期格式\n'
+      
+      if (hasConditions) validationMsg += '✅ 包含筛选条件\n'
+      else validationMsg += '⚠️ 缺少筛选条件连接符\n'
+      
+      if (hasNumbers) validationMsg += '✅ 包含数值条件\n'
+      else validationMsg += '⚠️ 缺少数值条件\n'
+      
+      validationMsg += `\n字符长度: ${contentToValidate.length} 字符`
+      
+      alert(validationMsg)
+    }
   }
 
   return (
@@ -880,796 +760,128 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
       </div>
 
       {/* Date Selection */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <CalendarIcon className="w-6 h-6 text-blue-600" />
-          <h2 className="text-lg font-bold text-gray-900">选择目标日期</h2>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          
-          <div className="flex gap-2">
-            <button
-              onClick={setToYesterday}
-              className="px-3 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors"
-            >
-              昨天
-            </button>
-            <button
-              onClick={setToToday}
-              className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
-            >
-              今天
-            </button>
-            <button
-              onClick={setToTomorrow}
-              className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors"
-            >
-              明天
-            </button>
-          </div>
-          
-          <div className="ml-auto text-blue-700 font-medium">
-            📅 {selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString('zh-CN', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric',
-              weekday: 'long'
-            }) : '请选择日期'}
-          </div>
-        </div>
-      </div>
+      <DateSelector
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+        onSetToday={setToToday}
+        onSetYesterday={setToYesterday}
+        onSetTomorrow={setToTomorrow}
+      />
 
       {/* Template Selection */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <DocumentTextIcon className="w-6 h-6 text-green-600" />
-            <h2 className="text-lg font-bold text-gray-900">选择筛选模板</h2>
-          </div>
-          <button
-            onClick={() => setShowSaveDialog(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            + 保存模板
-          </button>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg flex-wrap">
-          <button
-            onClick={() => setActiveTab('recent')}
-            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'recent'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            🕒 最近 ({recent.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('tags')}
-            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'tags'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            🏷️ 标签 ({getAllUniqueTags().length})
-          </button>
-          <button
-            onClick={() => setActiveTab('lists')}
-            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'lists'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            📋 收藏夹 ({namedFavoriteLists.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('custom')}
-            className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'custom'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            ⚙️ 自定义 ({customTemplates.length})
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div className="min-h-[200px]">
-          {activeTab === 'recent' && (
-            <div>
-              {getRecentTemplates().length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {getRecentTemplates().map((template) => (
-                    <TemplateCard key={template.id} template={template} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <ClockIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>暂无最近使用的模板</p>
-                  <p className="text-sm">选择其他模板后会显示在这里</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'custom' && (
-            <div>
-              {customTemplates.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {customTemplates.map((template) => (
-                    <TemplateCard key={template.id} template={template} />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <DocumentTextIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p>暂无自定义模板</p>
-                  <p className="text-sm">点击右上角"保存模板"按钮创建</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'tags' && (
-            <div>
-              {getAllUniqueTags().length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {getAllUniqueTags().map((tag, index) => {
-                    const tagColors = [
-                      'from-blue-500 to-cyan-500',
-                      'from-purple-500 to-pink-500',
-                      'from-green-500 to-teal-500',
-                      'from-orange-500 to-red-500',
-                      'from-indigo-500 to-purple-500',
-                      'from-teal-500 to-green-500'
-                    ];
-                    const tagEmojis = ['🏷️', '📌', '🔖', '🎯', '⚡', '🌟'];
-                    const currentGradient = tagColors[index % tagColors.length];
-                    const currentEmoji = tagEmojis[index % tagEmojis.length];
-                    const templateCount = getTemplatesByTag(tag).length;
-                    
-                    return (
-                      <div 
-                        key={tag}
-                        className={`relative bg-gradient-to-br ${currentGradient} rounded-xl p-4 text-white shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 cursor-pointer group`}
-                        onClick={() => {
-                          // You can add functionality to filter by this tag or expand templates
-                        }}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xl">{currentEmoji}</span>
-                          <div>
-                            <h4 className="font-semibold text-sm truncate">{tag}</h4>
-                            <p className="text-white/80 text-xs">{templateCount} 个模板</p>
-                          </div>
-                        </div>
-                        
-                        {templateCount > 0 && (
-                          <div className="space-y-1">
-                            <div className="flex flex-wrap gap-1">
-                              {getTemplatesByTag(tag).slice(0, 2).map((template: any) => (
-                                <div 
-                                  key={template.id}
-                                  className="bg-white/20 backdrop-blur-sm rounded-md px-2 py-1 text-xs hover:bg-white/30 transition-colors cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleTemplateSelect(template);
-                                  }}
-                                >
-                                  <div className="font-medium truncate max-w-20">{template.name}</div>
-                                </div>
-                              ))}
-                              {templateCount > 2 && (
-                                <div className="bg-white/20 backdrop-blur-sm rounded-md px-2 py-1 text-xs">
-                                  +{templateCount - 2}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="mb-4">
-                    <span className="text-6xl">🏷️</span>
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">还没有标签</h3>
-                  <p className="text-gray-500 mb-4">为模板添加标签来更好地分类管理</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'lists' && (
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <span className="text-2xl">📚</span>
-                  我的收藏夹
-                </h3>
-                <button
-                  onClick={() => setShowFavoriteListDialog(true)}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2"
-                >
-                  <span className="text-lg">✨</span>
-                  新建收藏夹
-                </button>
-              </div>
-              
-              {namedFavoriteLists.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {namedFavoriteLists.map((list: any, index: number) => {
-                    const gradientColors = [
-                      'from-blue-500 to-indigo-600',
-                      'from-purple-500 to-pink-600', 
-                      'from-green-500 to-teal-600',
-                      'from-orange-500 to-red-600',
-                      'from-cyan-500 to-blue-600',
-                      'from-violet-500 to-purple-600'
-                    ];
-                    const iconEmojis = ['💫', '🌟', '⭐', '🎯', '🔥', '💎', '🚀', '🌈', '✨', '🎨'];
-                    const currentGradient = gradientColors[index % gradientColors.length];
-                    const currentIcon = iconEmojis[index % iconEmojis.length];
-                    
-                    return (
-                      <div 
-                        key={list.id}
-                        className={`relative bg-gradient-to-br ${currentGradient} rounded-xl p-4 text-white shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 cursor-pointer group`}
-                        onClick={() => {
-                          setSelectedListForViewing(list)
-                          setShowTemplateListDialog(true)
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">{currentIcon}</span>
-                            <div>
-                              <h4 className="font-semibold text-sm">{list.name}</h4>
-                              <p className="text-white/80 text-xs">{list.templateIds.length} 个模板</p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleDeleteFavoriteList(list.id);
-                            }}
-                            className="opacity-75 group-hover:opacity-100 transition-opacity duration-200 hover:bg-red-500/30 rounded-full p-2 z-10 relative bg-white/10"
-                            title="删除收藏夹"
-                          >
-                            <span className="text-white text-sm">🗑️</span>
-                          </button>
-                        </div>
-                        
-                        {list.templateIds.length > 0 && (
-                          <div className="space-y-1">
-                            <h5 className="text-xs font-medium text-white/90 mb-1">包含模板:</h5>
-                            <div className="space-y-1">
-                              {list.templateIds.slice(0, 2).map((templateId: string) => {
-                                const template = findTemplateById(templateId, customTemplates);
-                                return template ? (
-                                  <div 
-                                    key={templateId}
-                                    className="bg-white/20 backdrop-blur-sm rounded-md p-2 text-xs"
-                                  >
-                                    <div className="font-medium truncate">{template.name}</div>
-                                    <div className="text-white/70 text-xs truncate">{template.description}</div>
-                                  </div>
-                                ) : null;
-                              })}
-                              {list.templateIds.length > 2 && (
-                                <div className="text-center text-white/70 text-xs py-1 bg-white/10 rounded-md">
-                                  还有 {list.templateIds.length - 2} 个模板...
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-center mt-2">
-                              <span className="text-white/80 text-xs">👆 点击查看全部模板</span>
-                            </div>
-                          </div>
-                        )}
-                        
-                        <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-xl"></div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <div className="mb-4">
-                    <span className="text-6xl">📚</span>
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">还没有收藏夹</h3>
-                  <p className="text-gray-500 mb-4">创建收藏夹来整理你的模板</p>
-                  <button
-                    onClick={() => setShowFavoriteListDialog(true)}
-                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl font-medium transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center gap-2 mx-auto"
-                  >
-                    <span className="text-lg">✨</span>
-                    创建第一个收藏夹
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      <TemplateTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onShowSaveDialog={() => setShowSaveDialog(true)}
+        recent={recent}
+        customTemplates={customTemplates}
+        namedFavoriteLists={namedFavoriteLists}
+        templateTags={templateTags}
+        getRecentTemplates={getRecentTemplates}
+        getAllUniqueTags={getAllUniqueTags}
+        getTemplatesByTag={getTemplatesByTag}
+        getTemplatesInFavoriteList={getTemplatesInFavoriteList}
+        selectedTemplate={selectedTemplate}
+        isTemplateInAnyFavoriteList={isTemplateInAnyFavoriteList}
+        onTemplateSelect={handleTemplateSelect}
+        onToggleFavorite={handleToggleFavorite}
+        onShowTagDialog={(templateId) => {
+          setSelectedTemplateForTag(templateId)
+          setShowTagDialog(true)
+        }}
+        onShowAddToCollectionDialog={(templateId) => {
+          setSelectedTemplateForTag(templateId)
+          setShowAddToCollectionDialog(true)
+        }}
+        onDeleteTemplate={handleDeleteTemplate}
+        onRemoveTag={handleRemoveTag}
+        onShowFavoriteListDialog={() => setShowFavoriteListDialog(true)}
+        onShowTemplateListDialog={(list) => {
+          setSelectedListForViewing(list)
+          setShowTemplateListDialog(true)
+        }}
+        onDeleteFavoriteList={handleDeleteFavoriteList}
+      />
 
       {/* Generated Output */}
-      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6">
-        <h2 className="text-lg font-bold text-gray-900 mb-4">生成的筛选条件</h2>
-        
-        <div className="bg-gray-50 rounded-lg p-4 mb-4 border border-gray-200">
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-sm text-gray-600">
-              当前模板: <span className="font-medium text-blue-600">{selectedTemplate?.name || '未选择'}</span>
-            </div>
-            {generatedPrompt && (
-              <button
-                onClick={() => {
-                  if (isEditable) {
-                    // When canceling edit, restore to last saved state (or generated if no saves)
-                    setEditablePrompt(lockedPrompt || generatedPrompt)
-                    setIsEditable(false)
-                  } else {
-                    // When starting edit, prepare for editing with current content
-                    setEditablePrompt(lockedPrompt || generatedPrompt)
-                    setIsEditable(true)
-                    setShowDateFormatWarning(false) // Clear warning when entering edit mode
-                  }
-                }}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                  isEditable 
-                    ? 'bg-red-100 text-red-700 hover:bg-red-200' 
-                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                }`}
-              >
-                {isEditable ? '❌ 取消编辑' : '✏️ 编辑'}
-              </button>
-            )}
-          </div>
-          
-          {/* Date Format Warning */}
-          {showDateFormatWarning && hasUserEdits && (
-            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <span className="text-yellow-600 text-lg">⚠️</span>
-                <div className="text-sm">
-                  <div className="font-medium text-yellow-800 mb-1">日期格式警告</div>
-                  <div className="text-yellow-700">
-                    在已保存的编辑内容中未找到可识别的日期格式，日期更改未自动应用。
-                    <br />
-                    建议使用标准格式：<code className="bg-yellow-100 px-1 rounded">2025年9月8日</code>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div className="relative">
-            <textarea
-              value={isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)}
-              onChange={(e) => {
-                if (isEditable) {
-                  setEditablePrompt(e.target.value)
-                }
-              }}
-              readOnly={!isEditable}
-              className={`w-full min-h-40 max-h-96 border border-gray-300 rounded-lg p-4 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-base leading-loose tracking-wide font-mono ${
-                isEditable ? 'bg-white' : 'bg-gray-50'
-              }`}
-              style={{ 
-                height: '200px',
-                lineHeight: '1.8',
-                letterSpacing: '0.025em'
-              }}
-              placeholder="选择日期和模板后，筛选条件将在此显示..."
-            />
-            <div className="absolute bottom-1 right-1 text-gray-400 pointer-events-none">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M16 16V10h-2v4h-4v2h6zM10 16v-2H6v2h4zM16 6V2h-4v2h2v2h2zM6 4V2H2v4h2V4h2z"/>
-                <path d="M9 9l2-2 2 2-2 2-2-2z"/>
-              </svg>
-            </div>
-          </div>
-          <div className="flex justify-between text-sm text-gray-500 mt-2">
-            <span>
-              {isEditable ? '可编辑模式 • ' : ''}可直接复制到股票软件使用 • 拖拽右下角调整高度
-            </span>
-            <span>{(isEditable ? editablePrompt : (lockedPrompt || generatedPrompt)).length} 字符</span>
-          </div>
-        </div>
+      <PromptOutput
+        selectedTemplate={selectedTemplate}
+        generatedPrompt={generatedPrompt}
+        isEditable={isEditable}
+        editablePrompt={editablePrompt}
+        lockedPrompt={lockedPrompt}
+        hasUserEdits={currentTemplateHasEdits}
+        showDateFormatWarning={showDateFormatWarning}
+        onToggleEdit={handleToggleEdit}
+        onEditablePromptChange={setEditablePrompt}
+        onSave={handleSave}
+        onRestore={handleRestore}
+        onCopy={handleCopy}
+        onDownload={handleDownload}
+        onAIAnalysis={handleAIAnalysis}
+        onSyntaxCheck={handleSyntaxCheck}
+      />
 
-        <div className="flex gap-3">
-          <button
-            onClick={handleGenerate}
-            disabled={loading || (!isEditable && !(lockedPrompt || generatedPrompt)) || (isEditable && !editablePrompt)}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-          >
-            {loading ? '生成中...' : hasGenerated ? '🚀 重新生成' : '🚀 生成筛选条件'}
-          </button>
-          
-          {isEditable ? (
-            // When in edit mode, show save, restore and copy buttons
-            <>
-              <button
-                onClick={() => {
-                  setLockedPrompt(editablePrompt)
-                  setHasUserEdits(true)
-                  setIsEditable(false)
-                  alert('已保存编辑内容！')
-                }}
-                disabled={!editablePrompt}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-              >
-                💾 保存编辑
-              </button>
-              <button
-                onClick={() => {
-                  if (generatedPrompt) {
-                    setEditablePrompt(generatedPrompt)
-                    setLockedPrompt('')
-                    setHasUserEdits(false)
-                    setIsEditable(false) // Switch back to locked state
-                    alert('已恢复到默认内容！')
-                  }
-                }}
-                disabled={!generatedPrompt}
-                className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-              >
-                🔄 恢复默认
-              </button>
-              <button
-                onClick={() => {
-                  if (editablePrompt) {
-                    navigator.clipboard.writeText(editablePrompt)
-                    alert('已复制到剪贴板！')
-                  }
-                }}
-                disabled={!editablePrompt}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-              >
-                📋 复制
-              </button>
-            </>
-          ) : (
-            // When not in edit mode, show only copy button
-            <button
-              onClick={() => {
-                const contentToCopy = lockedPrompt || generatedPrompt
-                if (contentToCopy) {
-                  navigator.clipboard.writeText(contentToCopy)
-                  alert('已复制到剪贴板！')
-                }
-              }}
-              disabled={!(lockedPrompt || generatedPrompt)}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
-            >
-              📋 复制
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Save Custom Template Dialog */}
-      {showSaveDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4">保存自定义模板</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模板名称</label>
-                <input
-                  type="text"
-                  value={templateName}
-                  onChange={(e) => setTemplateName(e.target.value)}
-                  placeholder="例如: 我的早盘策略"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模板描述</label>
-                <input
-                  type="text"
-                  value={templateDescription}
-                  onChange={(e) => setTemplateDescription(e.target.value)}
-                  placeholder="例如: 适用于早盘9:30-9:35的激进策略"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模板内容</label>
-                <div className="text-sm text-gray-600 mb-2">
-                  💡 直接输入包含日期的模板，系统会自动替换日期部分
-                </div>
-                <textarea
-                  value={customTemplateText}
-                  onChange={(e) => setCustomTemplateText(e.target.value)}
-                  placeholder="例如: 2025年9月8日09:30至09:35特大单净额排名行业前15..."
-                  className="w-full h-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleSaveCustomTemplate}
-                disabled={!templateName.trim() || !customTemplateText.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                保存模板
-              </button>
-              <button
-                onClick={() => setShowSaveDialog(false)}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Tag Dialog */}
-      {showTagDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">添加标签</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">标签名称</label>
-                <input
-                  type="text"
-                  value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
-                  placeholder="例如: 早盘, 激进, 稳健"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleAddTag}
-                disabled={!newTagName.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                添加标签
-              </button>
-              <button
-                onClick={() => {
-                  setShowTagDialog(false)
-                  setSelectedTemplateForTag(null)
-                  setNewTagName('')
-                }}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Favorite List Dialog */}
-      {showFavoriteListDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">新建收藏夹</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">收藏夹名称</label>
-                <input
-                  type="text"
-                  value={newFavoriteListName}
-                  onChange={(e) => setNewFavoriteListName(e.target.value)}
-                  placeholder="例如: 我的早盘策略, 稳健投资"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={handleAddFavoriteList}
-                disabled={!newFavoriteListName.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                创建收藏夹
-              </button>
-              <button
-                onClick={() => setShowFavoriteListDialog(false)}
-                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add to Collection/Category Dialog */}
-      {showAddToCollectionDialog && selectedTemplateForTag && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">添加到收藏夹或分类</h3>
-            
-            <div className="space-y-4">
-              {/* Add to Named Favorite Lists */}
-              <div>
-                <h4 className="font-medium text-gray-700 mb-2">收藏夹</h4>
-                {namedFavoriteLists.length > 0 ? (
-                  <div className="space-y-2">
-                    {namedFavoriteLists.map((list: any) => (
-                      <label key={list.id} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={list.templateIds.includes(selectedTemplateForTag)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const updatedLists = addTemplateToFavoriteList(selectedTemplateForTag, list.id)
-                              setNamedFavoriteLists(updatedLists)
-                            } else {
-                              const updatedLists = removeTemplateFromFavoriteList(selectedTemplateForTag, list.id)
-                              setNamedFavoriteLists(updatedLists)
-                            }
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm">{list.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">暂无收藏夹，请先创建收藏夹</p>
-                )}
-              </div>
-
-
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => {
-                  setShowAddToCollectionDialog(false)
-                  setSelectedTemplateForTag(null)
-                }}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                完成
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Template List Dialog */}
-      {showTemplateListDialog && selectedListForViewing && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">📚</span>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">{selectedListForViewing.name}</h3>
-                  <p className="text-sm text-gray-600">共 {selectedListForViewing.templateIds.length} 个模板</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowTemplateListDialog(false)
-                  setSelectedListForViewing(null)
-                }}
-                className="text-gray-400 hover:text-gray-600 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-              >
-                ×
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {selectedListForViewing.templateIds.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {selectedListForViewing.templateIds.map((templateId: string) => {
-                    const template = findTemplateById(templateId, customTemplates);
-                    return template ? (
-                      <div 
-                        key={templateId}
-                        className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer group"
-                        onClick={() => {
-                          handleTemplateSelect(template);
-                          setShowTemplateListDialog(false);
-                          setSelectedListForViewing(null);
-                        }}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                              {template.name}
-                            </h4>
-                            <p className="text-sm text-gray-600 line-clamp-2">
-                              {template.description}
-                            </p>
-                          </div>
-                          <div className="ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span className="text-blue-500 text-sm">点击选择 →</span>
-                          </div>
-                        </div>
-                        
-                        <div className="text-xs text-gray-500 bg-gray-100 rounded p-2 mt-2 max-h-16 overflow-hidden">
-                          <span className="font-medium">预览:</span> {template.template.substring(0, 80)}...
-                        </div>
-                        
-                        {/* Template tags if any */}
-                        {templateTags[template.id] && templateTags[template.id].length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {templateTags[template.id].slice(0, 3).map((tag: string, index: number) => (
-                              <span
-                                key={tag}
-                                className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full"
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                            {templateTags[template.id].length > 3 && (
-                              <span className="inline-flex items-center px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
-                                +{templateTags[template.id].length - 3}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : null;
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-gray-500">
-                  <span className="text-6xl mb-4 block">📝</span>
-                  <h3 className="text-lg font-semibold text-gray-700 mb-2">收藏夹为空</h3>
-                  <p className="text-gray-500">此收藏夹中暂无模板</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end p-6 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={() => {
-                  setShowTemplateListDialog(false)
-                  setSelectedListForViewing(null)
-                }}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Dialogs */}
+      <Dialogs
+        showSaveDialog={showSaveDialog}
+        templateName={templateName}
+        templateDescription={templateDescription}
+        customTemplateText={customTemplateText}
+        onTemplateNameChange={setTemplateName}
+        onTemplateDescriptionChange={setTemplateDescription}
+        onCustomTemplateTextChange={setCustomTemplateText}
+        onSaveCustomTemplate={handleSaveCustomTemplate}
+        onCloseSaveDialog={() => setShowSaveDialog(false)}
+        showTagDialog={showTagDialog}
+        newTagName={newTagName}
+        onNewTagNameChange={setNewTagName}
+        onAddTag={handleAddTag}
+        onCloseTagDialog={() => {
+          setShowTagDialog(false)
+          setSelectedTemplateForTag(null)
+          setNewTagName('')
+        }}
+        showFavoriteListDialog={showFavoriteListDialog}
+        newFavoriteListName={newFavoriteListName}
+        onNewFavoriteListNameChange={setNewFavoriteListName}
+        onAddFavoriteList={handleAddFavoriteList}
+        onCloseFavoriteListDialog={() => setShowFavoriteListDialog(false)}
+        showAddToCollectionDialog={showAddToCollectionDialog}
+        selectedTemplateForTag={selectedTemplateForTag}
+        namedFavoriteLists={namedFavoriteLists}
+        onAddTemplateToFavoriteList={handleAddTemplateToFavoriteList}
+        onCloseAddToCollectionDialog={() => {
+          setShowAddToCollectionDialog(false)
+          setSelectedTemplateForTag(null)
+        }}
+        showTemplateListDialog={showTemplateListDialog}
+        selectedListForViewing={selectedListForViewing}
+        getTemplatesInFavoriteList={getTemplatesInFavoriteList}
+        onRemoveTemplateFromFavoriteList={handleRemoveTemplateFromFavoriteList}
+        onCloseTemplateListDialog={() => {
+          setShowTemplateListDialog(false)
+          setSelectedListForViewing(null)
+        }}
+        selectedTemplate={selectedTemplate}
+        isTemplateInAnyFavoriteList={isTemplateInAnyFavoriteList}
+        templateTags={templateTags}
+        customTemplates={customTemplates}
+        onTemplateSelect={handleTemplateSelect}
+        onToggleFavorite={handleToggleFavorite}
+        onShowTagDialog={(templateId) => {
+          setSelectedTemplateForTag(templateId)
+          setShowTagDialog(true)
+        }}
+        onShowAddToCollectionDialog={(templateId) => {
+          setSelectedTemplateForTag(templateId)
+          setShowAddToCollectionDialog(true)
+        }}
+        onDeleteTemplate={handleDeleteTemplate}
+        onRemoveTag={handleRemoveTag}
+      />
     </div>
   )
 }
 
-// Provide default export for compatibility with both default and named import usages
 export default DateTemplateBuilder

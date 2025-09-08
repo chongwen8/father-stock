@@ -35,6 +35,25 @@ body {
   background: #a8a8a8;
 }
 
+/* Custom scrollbar for gradient backgrounds */
+.gradient-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.gradient-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.gradient-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+}
+
+.gradient-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
 @layer components {
   .btn-primary {
     @apply bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5;
