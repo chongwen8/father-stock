@@ -542,8 +542,8 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
                 }`}>
                   {isFavorite ? '⭐' : '☆'}
                 </span>
-                <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-xs bg-black text-white px-1 py-0.5 rounded whitespace-nowrap">
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
                     {isFavorite ? '取消收藏' : '添加收藏'}
                   </span>
                 </div>
@@ -561,8 +561,8 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
                 title="添加标签"
               >
                 <span className="text-sm">🏷️</span>
-                <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-xs bg-black text-white px-1 py-0.5 rounded whitespace-nowrap">
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
                     添加标签
                   </span>
                 </div>
@@ -580,8 +580,8 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
               title="添加到收藏夹"
             >
               <span className="text-sm">📚</span>
-              <div className="absolute -top-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-xs bg-black text-white px-1 py-0.5 rounded whitespace-nowrap">
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                <span className="text-xs bg-black text-white px-2 py-1 rounded whitespace-nowrap">
                   添加到收藏夹
                 </span>
               </div>
@@ -1233,30 +1233,7 @@ export function DateTemplateBuilder({ onGenerate, loading }: DateTemplateBuilder
                 )}
               </div>
 
-              {/* Add to Categories */}
-              <div>
-                <h4 className="font-medium text-gray-700 mb-2">分类</h4>
-                {customCategories.length > 0 ? (
-                  <div className="space-y-2">
-                    {customCategories.map((category: any) => (
-                      <label key={category.id} className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={false} // For now, we'll implement this later
-                          onChange={(e) => {
-                            // TODO: Implement category assignment
-                            console.log('Category assignment not implemented yet')
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm">{category.icon || '📁'} {category.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-500">暂无分类，请先创建分类</p>
-                )}
-              </div>
+
             </div>
             
             <div className="flex gap-3 mt-6">
